@@ -11,7 +11,7 @@ contract LiquidStaking is Ownable {
 
     uint256 public totalStakedTokens;
     uint256 public totalStakingTokens;
-    
+
     mapping(address => uint256) public stakerBalances;
 
     event Staked(address indexed user, uint256 amount);
@@ -25,7 +25,6 @@ contract LiquidStaking is Ownable {
 
     function stake(uint256 amount) external {
         require(amount > 0, "Amount must be greater than 0");
-        baseToken.transferFrom(msg.sender, address(this), amount);
 
         uint256 stakingAmount = (totalStakedTokens == 0 || totalStakingTokens == 0)
             ? amount
@@ -34,9 +33,10 @@ contract LiquidStaking is Ownable {
 
         totalStakedTokens += amount;
         totalStakingTokens += stakingAmount;
-
-        stakingToken.mint(msg.sender, stakingAmount);
         stakerBalances[msg.sender] += amount;
+
+        baseToken.transferFrom(msg.sender, address(this), amount);
+        stakingToken.mint(msg.sender, stakingAmount);
 
         emit Staked(msg.sender, amount);
     }
@@ -47,23 +47,22 @@ contract LiquidStaking is Ownable {
 
         uint256 baseAmount = (stakingAmount * totalStakedTokens) / totalStakingTokens;
         require(totalStakedTokens >= baseAmount, "Insufficient total staked tokens");
+        require(stakerBalances[msg.sender] >= baseAmount, "Insufficient staker balance");
 
         totalStakedTokens -= baseAmount;
         totalStakingTokens -= stakingAmount;
+        stakerBalances[msg.sender] -= baseAmount;
 
         stakingToken.burn(msg.sender, stakingAmount);
         baseToken.transfer(msg.sender, baseAmount);
-
-        require(stakerBalances[msg.sender] >= baseAmount, "Insufficient staker balance");
-        stakerBalances[msg.sender] -= baseAmount;
 
         emit Unstaked(msg.sender, baseAmount);
     }
 
     function addReward(uint256 rewardAmount) external onlyOwner {
         require(rewardAmount > 0, "Amount must be greater than 0");
-        baseToken.transferFrom(msg.sender, address(this), rewardAmount);
         totalStakedTokens += rewardAmount;
+        baseToken.transferFrom(msg.sender, address(this), rewardAmount);
         emit RewardAdded(rewardAmount);
     }
 }
